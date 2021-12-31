@@ -1,12 +1,13 @@
-import React from 'react';
-import { Text, View, StyleSheet } from 'react-native';
-import { useDispatch } from 'react-redux';
+import React, { useCallback, useMemo, useEffect } from 'react';
+import { Text, View, StyleSheet, InteractionManager, Button, Alert, FlatList } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
-import { set as setTime } from '../store/time';
-import { useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSelector } from 'react-redux';
-import { useMemo } from 'react';
+import ReactInterval from 'react-interval';
+import axios from 'axios';
+import GetLocation from 'react-native-get-location';
+import { set as setTime } from '../store/time';
+import { setCoordinates } from '../store/coordinates';
 
 const REFRESH_COOLDOWN_DEVICE_TIME = 1000;
 
@@ -32,6 +33,8 @@ const Styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 16,
     flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   Clock: {
     textAlign: 'center',
@@ -40,12 +43,33 @@ const Styles = StyleSheet.create({
   ClockMode: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 7,
+    marginLeft: 10,
+  },
+  InfoList: {
+    marginTop: 16,
+    paddingLeft: 16,
+    paddingRight: 16,
+  },
+  InfoListItem: {
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 8,
+    paddingRight: 8,
+    borderBottomColor: '#EEE',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignContent: 'center',
+    justifyContent: 'space-between',
   },
 });
 
 const Index = () => {
   const dispatch = useDispatch();
   const time = useSelector((state) => state.time.time);
+  const currentArea = useSelector((state) => state.coordinates.area);
+  const latitude = useSelector((state) => state.coordinates.latitude);
+  const longitude = useSelector((state) => state.coordinates.longitude);
   const formatDate = useMemo(() => moment(time).format('HH:mm:ss'), [time]);
   const currentTimeMode = useMemo(() => {
     const hours = moment(time).hours();
@@ -54,20 +78,61 @@ const Index = () => {
     if (hours >= 9 && hours <= 16) return '낮';
     if (hours >= 17 && hours <= 20) return '저녁';
     if (hours >= 21 && hours <= 23) return '밤';
-  }, [moment(time).format('HH')]);
+  }, [moment(time).hours()]);
+
+  const getCurrentTime = () => {
+    dispatch(setTime(new Date()));
+  };
+  const getTodayWeather = (latitude, longitude) => {
+    const domain = 'https://api.openweathermap.org/data/2.5/weather?';
+    const queries = [
+      `lat=${latitude}`,
+      `lon=${longitude}`,
+      `appid=${process.env.OPEN_WEATHER_API_KEY}`
+    ].join('&');
+    const endpoint = `${domain}${queries}`;
+    return axios.get(endpoint);
+  };
+  const getCityName = (latitude, longitude) => {
+    const key = process.env.GOOGLE_API_KEY;
+    console.log(key);
+    return axios.get(`https://www.googleapis.com/geolocation/v1/geolocate?key${key}`);
+  };
 
   useEffect(() => {
-    window.setInterval(() => {
-      dispatch(setTime(moment(time).hours()));
-    }, REFRESH_COOLDOWN_DEVICE_TIME);
+    GetLocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 15000,
+    }).then((location) => {
+      dispatch(setCoordinates(location.latitude, location.longitude));
+      getTodayWeather(location.latitude, location.longitude)
+      .then((result) => {
+        console.log(result);
+        // getCityName(location.latitude, location.longitude)
+        //   .then((response) => {
+        //     console.log(response);
+        //   })
+        //   .catch((err) => {
+        //     console.error(err);
+        //   });
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+    }).catch(() => {
+      Alert.alert('위치 권한 거부', '위치 권한을 할당하셔야 정상적인 앱 서비스를 이용하실 수 있습니다!');
+    });
   }, []);
-
-  console.log(333);
 
   return (
     <SafeAreaView
       style={Styles.SafeAreaView}
     >
+      <ReactInterval
+        timeout={REFRESH_COOLDOWN_DEVICE_TIME}
+        enabled={true}
+        callback={getCurrentTime}
+      />
       <View
         style={Styles.CardContainer}
       >
@@ -87,6 +152,22 @@ const Index = () => {
             >
               {currentTimeMode}
             </Text>
+          </View>
+          <View
+            style={Styles.InfoList}
+          >
+            <View
+              style={Styles.InfoListItem}
+            >
+              <Text>지역</Text>
+              <Text>{latitude} {longitude}</Text>
+            </View>
+            <View
+              style={Styles.InfoListItem}
+            >
+              <Text>현재 날씨</Text>
+              <Text></Text>
+            </View>
           </View>
         </View>
       </View>
