@@ -2,7 +2,7 @@ import 'react-native-gesture-handler';
 import React from 'react';
 import { Provider } from 'react-redux';
 import ReduxThunk from 'redux-thunk';
-import { createStore, compose, applyMiddleware } from 'redux';
+import { createStore, applyMiddleware } from 'redux';
 import logger from 'redux-logger';
 import { composeWithDevTools } from 'redux-devtools-extension';
 import Routes from './routes';
