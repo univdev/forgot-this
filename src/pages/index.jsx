@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useEffect } from 'react';
-import { Text, View, StyleSheet, InteractionManager, Button, Alert, FlatList } from 'react-native';
+import { Text, View, StyleSheet, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import moment from 'moment';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +7,8 @@ import ReactInterval from 'react-interval';
 import axios from 'axios';
 import GetLocation from 'react-native-get-location';
 import { set as setTime } from '../store/time';
-import { setCoordinates } from '../store/coordinates';
+import { setCoordinates, setArea } from '../store/coordinates';
+import { setCurrent as setCurrentWeather } from '../store/weather';
 
 const REFRESH_COOLDOWN_DEVICE_TIME = 1000;
 
@@ -70,6 +71,7 @@ const Index = () => {
   const currentArea = useSelector((state) => state.coordinates.area);
   const latitude = useSelector((state) => state.coordinates.latitude);
   const longitude = useSelector((state) => state.coordinates.longitude);
+  const weather = useSelector((state) => state.weather.current);
   const formatDate = useMemo(() => moment(time).format('HH:mm:ss'), [time]);
   const currentTimeMode = useMemo(() => {
     const hours = moment(time).hours();
@@ -93,11 +95,6 @@ const Index = () => {
     const endpoint = `${domain}${queries}`;
     return axios.get(endpoint);
   };
-  const getCityName = (latitude, longitude) => {
-    const key = process.env.GOOGLE_API_KEY;
-    console.log(key);
-    return axios.get(`https://www.googleapis.com/geolocation/v1/geolocate?key${key}`);
-  };
 
   useEffect(() => {
     GetLocation.getCurrentPosition({
@@ -106,15 +103,12 @@ const Index = () => {
     }).then((location) => {
       dispatch(setCoordinates(location.latitude, location.longitude));
       getTodayWeather(location.latitude, location.longitude)
-      .then((result) => {
-        console.log(result);
-        // getCityName(location.latitude, location.longitude)
-        //   .then((response) => {
-        //     console.log(response);
-        //   })
-        //   .catch((err) => {
-        //     console.error(err);
-        //   });
+      .then(({ data }) => {
+        const area = data.name;
+        const weathers = data.weather;
+        const currentWeather = weathers[0];
+        dispatch(setArea(area));
+        dispatch(setCurrentWeather(currentWeather.description));
       })
       .catch((err) => {
         console.error(err);
@@ -123,6 +117,10 @@ const Index = () => {
       Alert.alert('위치 권한 거부', '위치 권한을 할당하셔야 정상적인 앱 서비스를 이용하실 수 있습니다!');
     });
   }, []);
+
+  const handleShowCoordinates = () => {
+    return Alert.alert('현재 지역의 좌표', `Latitude: ${latitude}\nLongitude: ${longitude}`);
+  };
 
   return (
     <SafeAreaView
@@ -160,13 +158,17 @@ const Index = () => {
               style={Styles.InfoListItem}
             >
               <Text>지역</Text>
-              <Text>{latitude} {longitude}</Text>
+              <Text
+                onPress={handleShowCoordinates}
+              >
+                {currentArea}
+              </Text>
             </View>
             <View
               style={Styles.InfoListItem}
             >
               <Text>현재 날씨</Text>
-              <Text></Text>
+              <Text>{weather}</Text>
             </View>
           </View>
         </View>
